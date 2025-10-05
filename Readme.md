@@ -25,3 +25,11 @@
 
 P.S: The order of the flags for the cat utility matters since that's how getopts parses. In later versions,
      adding a customized parsing logic could help resolve it.
+
+#### find
+
+### Example Usage
+
+- find /path
+- find /path -name file_name
+- find /path -iname file_name
