@@ -39,7 +39,15 @@ P.S: The order of the flags for the cat utility matters since that's how getopts
 
 ### Example Usage
 
-- head <file_name> # Read 10 lines by default
-- head -n 20 <filen_1> <file_2> # Read 20 lines from each file
-- head -c 10 <file_1> <file_2> # Read 10 bytes from each file
-- head < <file_name> # Read from stdin
+- head <file_name> # read first 10 lines by default
+- head -n 20 <filen_1> <file_2> # read first 20 lines from each file
+- head -c 10 < <file_1>  # read first 10 bytes from stdin
+
+#### tail
+
+### Example Usage
+
+- tail <file_name> # read last 10 lines by default
+- tail -n 20 <filen_1> <file_2> # read last 20 lines from each file
+- tail -c 10 < <file_name> # read last 10 bytes from stdin
+- tail -n 5 -f <file_name> # read last 5 lines and follow file

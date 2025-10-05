@@ -28,6 +28,7 @@ void print_head_lines(FILE *file, int num_lines, const char *filename) {
         printf("%s", buffer);
         count++;
     }
+
     printf("\n");
 }
 
@@ -36,13 +37,20 @@ void print_head_bytes(FILE *file, int num_bytes, const char *filename) {
         printf("==> %s <==\n", filename);  // Print filename header for multiple files
     }
 
-    char buffer[1];
-    int count = 0;
-    while (fread(buffer, 1, 1, file) == 1 && count < num_bytes) {
-        printf("%c", buffer[0]);
-        count++;
+    char *buffer = malloc(num_bytes + 1); // +1 for null-termination
+    if (buffer == NULL) {
+        perror("Error allocating memory");
+        return;
     }
+
+    size_t bytesRead = fread(buffer, 1, num_bytes, file);
+    buffer[bytesRead] = '\0';
+
+    // Print the read bytes
+    printf("%s", buffer);
     printf("\n");
+
+    free(buffer); // Free allocated memory
 }
 
 void process_file(const char *filename, int num_lines, int num_bytes, int is_bytes) {
@@ -74,8 +82,6 @@ int main(int argc, char *argv[]) {
     int num_bytes = -1;
     int is_bytes = 0;  // Flag to indicate if -c (bytes) is used
     int file_start = 1;
-    
-    if (argc < 2) usage();
 
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
