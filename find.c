@@ -4,6 +4,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
 
 // Define constants for search modes
 #define CASE_SENSITIVE 0
@@ -76,7 +78,64 @@ int check_size(off_t file_size, const char *size_condition) {
     return 1;
 }
 
-void list_files(const char *path, const char *name_pattern, int search_mode, int type_filter, const char *size_condition) {
+// The function checks if the bitwise AND of file_mode and permissions equals permissions.
+// This verifies whether all specified permissions are set on the file.
+int check_permissions(mode_t file_mode, const char *perm_condition) {
+    // Parse permissions
+    mode_t permissions = 0;
+
+    // Check each character in the permission string
+    if (perm_condition) {
+        for (size_t i = 0; i < strlen(perm_condition); i++) {
+            char perm = perm_condition[i];
+            if (perm == 'r') {
+                permissions |= S_IRUSR;
+            } else if (perm == 'w') {
+                permissions |= S_IWUSR;
+            } else if (perm == 'x') {
+                permissions |= S_IXUSR;
+            }
+            // Add more conditions for group and others if needed
+        }
+    }
+
+    // Compare with file's permissions
+    return (file_mode & permissions) == permissions;
+}
+
+// The function determines if the file is owned by a specific user
+int check_user(uid_t file_uid, const char *user) {
+    if (!user) return 1;
+
+    struct passwd *pw = getpwnam(user);
+    if (!pw) {
+        fprintf(stderr, "User not found: %s\n", user);
+        return 0;
+    }
+    return file_uid == pw->pw_uid;
+}
+
+// The function determines if the file is owned by a specific group
+int check_group(gid_t file_gid, const char *group) {
+    if (!group) return 1;
+
+    struct group *gr = getgrnam(group);
+    if (!gr) {
+        fprintf(stderr, "Group not found: %s\n", group);
+        return 0;
+    }
+    return file_gid == gr->gr_gid;
+}
+
+void list_files(const char *path,
+                const char *name_pattern,
+                int search_mode,
+                int type_filter,
+                const char *size_condition,
+                const char *perm_condition,
+                const char *user,
+                const char *group) {
+
     struct dirent *entry;
     struct stat statbuf;
     DIR *dp = opendir(path);
@@ -112,20 +171,32 @@ void list_files(const char *path, const char *name_pattern, int search_mode, int
         int name_matches = check_name(entry->d_name, name_pattern, search_mode);
         int type_matches = check_type(&statbuf, type_filter);
         int size_matches = check_size(statbuf.st_size, size_condition);
+        int perm_matches = check_permissions(statbuf.st_mode, perm_condition);
+        int user_matches = check_user(statbuf.st_uid, user);
+        int group_matches = check_group(statbuf.st_gid, group);
 
         // Print directories if they match the criteria
-        if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches && size_matches) {
+        if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches && size_matches
+                && perm_matches && user_matches && group_matches) {
             printf("%s\n", full_path);  // Print the directory path
         }
 
         // Always recurse into directories
         if (S_ISDIR(statbuf.st_mode)) {
             // Recurse into the directory to list its contents
-            list_files(full_path, name_pattern, search_mode, type_filter, size_condition);
+            list_files(full_path,
+                       name_pattern,
+                       search_mode,
+                       type_filter,
+                       size_condition,
+                       perm_condition,
+                       user,
+                       group);
         }
 
         // Print the entry if it matches the name and type
-        if (name_matches && type_matches && size_matches && S_ISREG(statbuf.st_mode)) {
+        if (name_matches && type_matches && size_matches && S_ISREG(statbuf.st_mode)
+                && perm_matches && user_matches && group_matches) {
             printf("%s\n", full_path);  // Print the file path
         }
     }
@@ -143,6 +214,9 @@ void print_usage() {
     printf("  -s <size>              Filter files by size. Use:\n");
     printf("                          -1K for smaller than 1 Kilobyte,\n");
     printf("                          +100M for larger than 100 Megabytes,\n");
+    fprintf(stderr, "  -perm <mode>      Search for files with specific permissions.\n");
+    fprintf(stderr, "  -user <username>  Search for files owned by a specific user.\n");
+    fprintf(stderr, "  -group <groupname> Search for files owned by a specific group.\n");
     printf("  -h, --help             Display this help message and exit\n");
 }
 
@@ -152,7 +226,9 @@ int main(int argc, char *argv[]) {
     int search_mode = CASE_SENSITIVE;  // Default is case-sensitive search
     int type_filter = TYPE_ALL;
     const char *size_condition = NULL;
-
+    const char *perm_condition = NULL;
+    const char *user = NULL;
+    const char *group = NULL;
 
     // Parse command-line arguments
     if (argc < 2 || strcmp(argv[1], "-h") == 0) {
@@ -185,6 +261,16 @@ int main(int argc, char *argv[]) {
             i++;  // Move past the type
         } else if (strcmp(argv[i], "-size") == 0 && i + 1 < argc) {
             size_condition = argv[i+1];
+            i++;
+        } else if (strcmp(argv[i], "-perm") == 0 && i + 1 < argc) {
+            perm_condition = argv[i+1];
+            i++;
+        } else if (strcmp(argv[i], "-user") == 0 && i + 1 < argc) {
+            user = argv[i+1];
+            i++;
+        } else if (strcmp(argv[i], "-group") == 0 && i + 1 < argc) {
+            group = argv[i+1];
+            i++;
         }
     }
 
@@ -195,7 +281,8 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     // Call the list_files function with the name pattern
-    list_files(path, name_pattern, search_mode, type_filter, size_condition);
+    list_files(path, name_pattern, search_mode, type_filter,
+                size_condition, perm_condition, user, group);
 
     printf("Finished directory traversal.\n");  // Debug when done
     fflush(stdout);
