@@ -6,8 +6,8 @@ CC = gcc
 # Compiler flags
 CFLAGS = -Wall -Wextra -pedantic
 
-# List of source files (replace with your actual file names)
-SRCS = cat.c # Add your C files here
+# List of source files
+SRCS = cat.c find.c
 
 # Default target
 all: $(SRCS:.c=)
