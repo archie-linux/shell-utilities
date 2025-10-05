@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
+#include <time.h>
 
 // Define constants for search modes
 #define CASE_SENSITIVE 0
@@ -40,6 +41,7 @@ off_t parse_size(const char *size_str) {
     return size;
 }
 
+// This function checks the file name
 int check_name(const char *entry_name, const char *name_pattern, int search_mode) {
         // Check if the name matches the provided pattern
         int name_matches = (name_pattern == NULL) ||
@@ -49,6 +51,7 @@ int check_name(const char *entry_name, const char *name_pattern, int search_mode
         return name_matches;
 }
 
+// This function checks the file's type
 int check_type(struct stat *statbuf, int type_filter) {
         // Determine if the entry is a file or directory
         int is_directory = S_ISDIR(statbuf->st_mode);
@@ -62,6 +65,7 @@ int check_type(struct stat *statbuf, int type_filter) {
         return type_matches;
 }
 
+// This functions checks the file size
 int check_size(off_t file_size, const char *size_condition) {
     if (!size_condition) {
         return 1; // No size condition provided, match by default
@@ -78,7 +82,7 @@ int check_size(off_t file_size, const char *size_condition) {
     return 1;
 }
 
-// The function checks if the bitwise AND of file_mode and permissions equals permissions.
+// This function checks if the bitwise AND of file_mode and permissions equals permissions.
 // This verifies whether all specified permissions are set on the file.
 int check_permissions(mode_t file_mode, const char *perm_condition) {
     // Parse permissions
@@ -103,7 +107,7 @@ int check_permissions(mode_t file_mode, const char *perm_condition) {
     return (file_mode & permissions) == permissions;
 }
 
-// The function determines if the file is owned by a specific user
+// This function determines if the file is owned by a specific user
 int check_user(uid_t file_uid, const char *user) {
     if (!user) return 1;
 
@@ -115,7 +119,7 @@ int check_user(uid_t file_uid, const char *user) {
     return file_uid == pw->pw_uid;
 }
 
-// The function determines if the file is owned by a specific group
+// This function determines if the file is owned by a specific group
 int check_group(gid_t file_gid, const char *group) {
     if (!group) return 1;
 
@@ -127,6 +131,36 @@ int check_group(gid_t file_gid, const char *group) {
     return file_gid == gr->gr_gid;
 }
 
+// This function checks the file modification time
+int check_mtime(time_t file_mtime, const char *mtime_condition) {
+    if (!mtime_condition) return 1; // No mtime condition provided, match by default
+
+    int days = 0;
+
+    if (mtime_condition[0] == '+' || mtime_condition[0] == '-') {
+        days = strtoll(mtime_condition + 1, NULL, 10); // Skip the +/- operator
+    } else {
+        days = strtoll(mtime_condition, NULL, 10);
+    }
+
+    // Get the current time
+    time_t now = time(NULL);
+    double seconds_diff = difftime(now, file_mtime);
+    double seconds_in_day = 86400; // Number of seconds in a day
+
+    if (mtime_condition[0] == '-') {
+        // Less than n days ago
+        return (seconds_diff < days * seconds_in_day);
+    } else if (mtime_condition[0] == '+') {
+        // More than n days ago
+        return (seconds_diff > days * seconds_in_day);
+    } else {
+        // Exactly n days ago
+        return (seconds_diff >= days * seconds_in_day &&
+                seconds_diff < ((days + 1) * seconds_in_day));
+    }
+}
+
 void list_files(const char *path,
                 const char *name_pattern,
                 int search_mode,
@@ -134,7 +168,8 @@ void list_files(const char *path,
                 const char *size_condition,
                 const char *perm_condition,
                 const char *user,
-                const char *group) {
+                const char *group,
+                const char *mtime_condition) {
 
     struct dirent *entry;
     struct stat statbuf;
@@ -174,10 +209,11 @@ void list_files(const char *path,
         int perm_matches = check_permissions(statbuf.st_mode, perm_condition);
         int user_matches = check_user(statbuf.st_uid, user);
         int group_matches = check_group(statbuf.st_gid, group);
+        int mtime_matches = check_mtime(statbuf.st_mtimespec.tv_sec, mtime_condition);
 
         // Print directories if they match the criteria
         if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches && size_matches
-                && perm_matches && user_matches && group_matches) {
+                && perm_matches && user_matches && group_matches && mtime_matches) {
             printf("%s\n", full_path);  // Print the directory path
         }
 
@@ -191,12 +227,13 @@ void list_files(const char *path,
                        size_condition,
                        perm_condition,
                        user,
-                       group);
+                       group,
+                       mtime_condition);
         }
 
         // Print the entry if it matches the name and type
         if (name_matches && type_matches && size_matches && S_ISREG(statbuf.st_mode)
-                && perm_matches && user_matches && group_matches) {
+                && perm_matches && user_matches && group_matches && mtime_matches) {
             printf("%s\n", full_path);  // Print the file path
         }
     }
@@ -217,6 +254,9 @@ void print_usage() {
     fprintf(stderr, "  -perm <mode>      Search for files with specific permissions.\n");
     fprintf(stderr, "  -user <username>  Search for files owned by a specific user.\n");
     fprintf(stderr, "  -group <groupname> Search for files owned by a specific group.\n");
+    fprintf(stderr, "  -mtime <n>       Files modified exactly n days ago.\n");
+    fprintf(stderr, "  -mtime +<n>      Files modified more than n days ago.\n");
+    fprintf(stderr, "  -mtime -<n>      Files modified less than n days ago.\n");
     printf("  -h, --help             Display this help message and exit\n");
 }
 
@@ -229,6 +269,7 @@ int main(int argc, char *argv[]) {
     const char *perm_condition = NULL;
     const char *user = NULL;
     const char *group = NULL;
+    const char *mtime_condition = NULL;
 
     // Parse command-line arguments
     if (argc < 2 || strcmp(argv[1], "-h") == 0) {
@@ -271,6 +312,9 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "-group") == 0 && i + 1 < argc) {
             group = argv[i+1];
             i++;
+        } else if (strcmp(argv[i], "-mtime") == 0 && i + 1 < argc) {
+            mtime_condition = argv[i+1];
+            i++;
         }
     }
 
@@ -282,7 +326,7 @@ int main(int argc, char *argv[]) {
 
     // Call the list_files function with the name pattern
     list_files(path, name_pattern, search_mode, type_filter,
-                size_condition, perm_condition, user, group);
+                size_condition, perm_condition, user, group, mtime_condition);
 
     printf("Finished directory traversal.\n");  // Debug when done
     fflush(stdout);

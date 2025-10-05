@@ -39,4 +39,5 @@ P.S: The order of the flags for the cat utility matters since that's how getopts
 - find /path -type d -name <dir_name>
 - find /path -size +100M
 - find /path -user <user_name> -group <group_name>
-- find /path -perm <r,w,x,rw,rx>
+- find /path -perm <r,x,rw,rx>
+- find /path -mtime +5 // more than 5 days ago
