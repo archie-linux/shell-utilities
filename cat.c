@@ -2,15 +2,16 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 #define BUFFER_SIZE 1024
 
 void usage(char *argv[]) {
-    fprintf(stderr, "Usage: %s [-o outputfile] [-a appendfile] file1 [file2 ...]\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-o outputfile] [-a appendfile] [-n showLineNumbers] file1 [file2 ...]\n", argv[0]);
     exit(EXIT_FAILURE);
 }
 
-void display_file(const char *filename) {
+void display_file(const char *filename, int show_line_numbers) {
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         perror("Error opening file");
@@ -18,13 +19,36 @@ void display_file(const char *filename) {
     }
 
     char buffer[BUFFER_SIZE];
+    char line[BUFFER_SIZE];
+    int line_number = 1;
     ssize_t bytes_read;
+    int line_index = 0;
 
     while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
-        if (write(STDOUT_FILENO, buffer, bytes_read) != bytes_read) {
-            perror("Error writing to stdout");
-            close(fd);
-            exit(EXIT_FAILURE);
+        for (int i = 0; i < bytes_read; i++) {
+            // Read one char at a time from the buffer to create a line
+            line[line_index++] = buffer[i];
+
+            // If we encounter a new line character, then the line is complete
+            if (buffer[i] == '\n') {
+                line[line_index] = '\0'; // Null-terminate the line
+
+                // printf("%s", line);
+
+                // Print the line number if enabled
+                if (show_line_numbers) {
+                    char line_number_str[32];
+                    snprintf(line_number_str, sizeof(line_number_str), "%6d ", line_number++);
+                    // printf("%s", line_number_str);
+                    write(STDOUT_FILENO, line_number_str, strlen(line_number_str));
+                }
+
+                // Write the entire line
+                write(STDOUT_FILENO, line, line_index);
+
+                // Reset line index for the next line
+                line_index = 0;
+            }
         }
     }
 
@@ -44,10 +68,11 @@ int main(int argc, char *argv[]) {
     int opt;
     char *output_file = NULL;
     int append_mode = 0;
+    int show_line_numbers = 0;
     int output_fd = STDOUT_FILENO;
 
     // Parse command-line options using getopts
-    while ((opt = getopt(argc, argv, "o:a:")) != -1) {
+    while ((opt = getopt(argc, argv, "o:a:n")) != -1) {
         switch (opt) {
             case 'o':
                 output_file = optarg;
@@ -56,6 +81,9 @@ int main(int argc, char *argv[]) {
             case 'a':
                 output_file = optarg;
                 append_mode = 1;
+                break;
+            case 'n':
+                show_line_numbers = 1;
                 break;
             default:
                 usage(argv);
@@ -91,7 +119,7 @@ int main(int argc, char *argv[]) {
 
 
     for (int i = optind; i < argc; ++i) {
-        display_file(argv[i]);
+        display_file(argv[i], show_line_numbers);
     }
 
     return 0;
