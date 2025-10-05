@@ -17,11 +17,10 @@
 ### Example Usage
 
 - cat zen.txt
-- cat -o zen1.txt zen.txt
-- cat -a zen1.txt zen.txt
-- cat -o zen1.txt zen.txt test.txt
-- cat -a zen1.txt zen.txt test.txt
-- cat -n zen.txt
+- cat -o <output_file> <file_name>
+- cat -a <output_file> <file_name>
+- cat -o <output_file> <file_1> <file_2>
+- cat -n <file_name>
 
 P.S: The order of the flags for the cat utility matters since that's how getopts parses. In later versions,
      adding a customized parsing logic could help resolve it.
@@ -32,12 +31,15 @@ P.S: The order of the flags for the cat utility matters since that's how getopts
 
 - find /path
 - find /path -name <file_name>
-- find /path -iname <file_name>
-- find /path -type f
-- find /path -type d
-- find /path -type f -name <file_name>
-- find /path -type d -name <dir_name>
-- find /path -size +100M
-- find /path -user <user_name> -group <group_name>
-- find /path -perm <r,x,rw,rx>
-- find /path -mtime +5 // more than 5 days ago
+- find /path -type f -iname <file_name>
+- find /path -user <user_name> -group <group_name>  -perm <r,x,rw,rx>
+- find /path -size +100M -mtime +5
+
+#### head
+
+### Example Usage
+
+- head <file_name> # Read 10 lines by default
+- head -n 20 <filen_1> <file_2> # Read 20 lines from each file
+- head -c 10 <file_1> <file_2> # Read 10 bytes from each file
+- head < <file_name> # Read from stdin

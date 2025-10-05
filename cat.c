@@ -8,7 +8,7 @@
 
 void usage(char *argv[]) {
     fprintf(stderr, "Usage: %s [-o outputfile] [-a appendfile] [-n showLineNumbers] file1 [file2 ...]\n", argv[0]);
-    exit(EXIT_FAILURE);
+    exit(EXIT_SUCCESS);
 }
 
 void display_file(const char *filename, int show_line_numbers) {

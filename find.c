@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
     // Parse command-line arguments
     if (argc < 2 || strcmp(argv[1], "-h") == 0) {
         print_usage();
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     // Process the arguments
