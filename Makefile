@@ -7,7 +7,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Wno-strict-prototypes -pedantic
 
 # List of source files
-SRCS = cat.c find.c head.c tail.c
+SRCS = cat.c find.c head.c tail.c nice.c
 
 # Default target
 all: $(SRCS:.c=)
