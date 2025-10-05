@@ -37,3 +37,4 @@ P.S: The order of the flags for the cat utility matters since that's how getopts
 - find /path -type d
 - find /path -type f -name file_name
 - find /path -type d -name dir_name
+- find /path -size +100M

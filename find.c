@@ -14,6 +14,30 @@
 #define TYPE_FILE 1
 #define TYPE_DIR 2
 
+// Function to convert size string (like 1K, 100M) to bytes
+off_t parse_size(const char *size_str) {
+    char unit = size_str[strlen(size_str) - 1];
+    off_t size = strtoll(size_str, NULL, 10);
+
+    switch(unit) {
+        case 'K':
+        case 'k':
+            size *= 1024;
+            break;
+        case 'M':
+        case 'm':
+            size *= 1024 * 1024;
+            break;
+        case 'G':
+        case 'g':
+            size *= 1024 * 1024 * 1024;
+            break;
+        default: break; // If no unit, treat as bytes
+    }
+
+    return size;
+}
+
 int check_name(const char *entry_name, const char *name_pattern, int search_mode) {
         // Check if the name matches the provided pattern
         int name_matches = (name_pattern == NULL) ||
@@ -36,7 +60,23 @@ int check_type(struct stat *statbuf, int type_filter) {
         return type_matches;
 }
 
-void list_files(const char *path, char *name_pattern, int search_mode, int type_filter) {
+int check_size(off_t file_size, const char *size_condition) {
+    if (!size_condition) {
+        return 1; // No size condition provided, match by default
+    }
+
+    char operator = size_condition[0];
+    off_t size_limit = parse_size(size_condition + 1); // Parse size after the +/- operator
+
+    if (operator == '+') {
+        return file_size > size_limit;
+    } else if (operator == '-') {
+        return file_size < size_limit;
+    }
+    return 1;
+}
+
+void list_files(const char *path, const char *name_pattern, int search_mode, int type_filter, const char *size_condition) {
     struct dirent *entry;
     struct stat statbuf;
     DIR *dp = opendir(path);
@@ -71,20 +111,21 @@ void list_files(const char *path, char *name_pattern, int search_mode, int type_
 
         int name_matches = check_name(entry->d_name, name_pattern, search_mode);
         int type_matches = check_type(&statbuf, type_filter);
+        int size_matches = check_size(statbuf.st_size, size_condition);
 
         // Print directories if they match the criteria
-        if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches) {
+        if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches && size_matches) {
             printf("%s\n", full_path);  // Print the directory path
         }
 
         // Always recurse into directories
         if (S_ISDIR(statbuf.st_mode)) {
             // Recurse into the directory to list its contents
-            list_files(full_path, name_pattern, search_mode, type_filter);
+            list_files(full_path, name_pattern, search_mode, type_filter, size_condition);
         }
 
         // Print the entry if it matches the name and type
-        if (name_matches && type_matches && S_ISREG(statbuf.st_mode)) {
+        if (name_matches && type_matches && size_matches && S_ISREG(statbuf.st_mode)) {
             printf("%s\n", full_path);  // Print the file path
         }
     }
@@ -92,15 +133,30 @@ void list_files(const char *path, char *name_pattern, int search_mode, int type_
     closedir(dp);
 }
 
+void print_usage() {
+    printf("Usage: find [path] [options]\n");
+    printf("Options:\n");
+    printf("  -name <filename>        Search for files by name (case-sensitive)\n");
+    printf("  -iname <filename>       Search for files by name (case-insensitive)\n");
+    printf("  -type <type>           Specify the type of file to search for:\n");
+    printf("                          'f' for regular files, 'd' for directories\n");
+    printf("  -s <size>              Filter files by size. Use:\n");
+    printf("                          -1K for smaller than 1 Kilobyte,\n");
+    printf("                          +100M for larger than 100 Megabytes,\n");
+    printf("  -h, --help             Display this help message and exit\n");
+}
+
 int main(int argc, char *argv[]) {
-    char *path = NULL;
-    char *name_pattern = NULL;
+    const char *path = NULL;
+    const char *name_pattern = NULL;
     int search_mode = CASE_SENSITIVE;  // Default is case-sensitive search
     int type_filter = TYPE_ALL;
+    const char *size_condition = NULL;
+
 
     // Parse command-line arguments
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s path [-name <filename>] [-iname <filename>]\n", argv[0]);
+    if (argc < 2 || strcmp(argv[1], "-h") == 0) {
+        print_usage();
         return EXIT_FAILURE;
     }
 
@@ -127,6 +183,8 @@ int main(int argc, char *argv[]) {
                 return EXIT_FAILURE;
             }
             i++;  // Move past the type
+        } else if (strcmp(argv[i], "-size") == 0 && i + 1 < argc) {
+            size_condition = argv[i+1];
         }
     }
 
@@ -137,7 +195,7 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     // Call the list_files function with the name pattern
-    list_files(path, name_pattern, search_mode, type_filter);
+    list_files(path, name_pattern, search_mode, type_filter, size_condition);
 
     printf("Finished directory traversal.\n");  // Debug when done
     fflush(stdout);
