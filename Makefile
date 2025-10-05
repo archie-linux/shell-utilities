@@ -7,7 +7,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic
 
 # List of source files (replace with your actual file names)
-SRCS = my-cat.c # Add your C files here
+SRCS = cat.c # Add your C files here
 
 # Default target
 all: $(SRCS:.c=)
