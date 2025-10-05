@@ -14,6 +14,28 @@
 #define TYPE_FILE 1
 #define TYPE_DIR 2
 
+int check_name(const char *entry_name, const char *name_pattern, int search_mode) {
+        // Check if the name matches the provided pattern
+        int name_matches = (name_pattern == NULL) ||
+                           (search_mode == CASE_SENSITIVE && strcmp(entry_name, name_pattern) == 0) ||
+                           (search_mode == CASE_INSENSITIVE && strcasecmp(entry_name, name_pattern) == 0);
+
+        return name_matches;
+}
+
+int check_type(struct stat *statbuf, int type_filter) {
+        // Determine if the entry is a file or directory
+        int is_directory = S_ISDIR(statbuf->st_mode);
+        int is_regular_file = S_ISREG(statbuf->st_mode);
+
+        // Check for type matches
+        int type_matches = (type_filter == TYPE_ALL) ||
+                           (type_filter == TYPE_FILE && is_regular_file) ||
+                           (type_filter == TYPE_DIR && is_directory);
+
+        return type_matches;
+}
+
 void list_files(const char *path, char *name_pattern, int search_mode, int type_filter) {
     struct dirent *entry;
     struct stat statbuf;
@@ -47,33 +69,22 @@ void list_files(const char *path, char *name_pattern, int search_mode, int type_
             continue;
         }
 
-        // Check if the name matches the provided pattern
-        int name_matches = (name_pattern == NULL) ||
-                           (search_mode == CASE_SENSITIVE && strcmp(entry->d_name, name_pattern) == 0) ||
-                           (search_mode == CASE_INSENSITIVE && strcasecmp(entry->d_name, name_pattern) == 0);
-
-        // Determine if the entry is a file or directory
-        int is_directory = S_ISDIR(statbuf.st_mode);
-        int is_regular_file = S_ISREG(statbuf.st_mode);
-
-        // Check for type matches
-        int type_matches = (type_filter == TYPE_ALL) ||
-                           (type_filter == TYPE_FILE && is_regular_file) ||
-                           (type_filter == TYPE_DIR && is_directory);
+        int name_matches = check_name(entry->d_name, name_pattern, search_mode);
+        int type_matches = check_type(&statbuf, type_filter);
 
         // Print directories if they match the criteria
-        if (type_matches && is_directory && name_matches) {
+        if (type_matches && S_ISDIR(statbuf.st_mode) && name_matches) {
             printf("%s\n", full_path);  // Print the directory path
         }
 
         // Always recurse into directories
-        if (is_directory) {
+        if (S_ISDIR(statbuf.st_mode)) {
             // Recurse into the directory to list its contents
             list_files(full_path, name_pattern, search_mode, type_filter);
         }
 
         // Print the entry if it matches the name and type
-        if (name_matches && type_matches && is_regular_file) {
+        if (name_matches && type_matches && S_ISREG(statbuf.st_mode)) {
             printf("%s\n", full_path);  // Print the file path
         }
     }
